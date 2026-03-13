@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Raspberry Pi Control Dashboard</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+
+  <body>
+    <div class="dashboard">
+      <h1>Raspberry Pi Control Dashboard</h1>
+
+      <div class="status">
+        <div class="indicator" id="statusIndicator"></div>
+        <span id="statusText">Disconnected</span>
+      </div>
+
+      <div class="controls">
+        <div class="section">
+          <h2>Connection Controls</h2>
+          <button onclick="connect()">Connect</button>
+          <button onclick="disconnect()">Disconnect</button>
+          <button onclick="shutdownPi()" class="danger">
+            Shutdown Raspberry Pi
+          </button>
+        </div>
+
+        <div class="section">
+          <h2>Camera Controls</h2>
+          <button onclick="openCamera()">Open Camera</button>
+          <button onclick="faceDetect()">Face Detect</button>
+          <button onclick="redDetect()">Red Detect</button>
+          <button onclick="killAll()">Kill All Programs</button>
+        </div>
+      </div>
+
+      <div class="log">
+        <h3>Last Action</h3>
+        <p id="logText">No action performed yet</p>
+      </div>
+    </div>
+
+    <script src="script.js"></script>
+  </body>
+</html>
