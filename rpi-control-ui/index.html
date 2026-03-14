@@ -1,44 +1,833 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Raspberry Pi Control Dashboard</title>
     <link rel="stylesheet" href="style.css" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+    />
   </head>
 
   <body>
-    <div class="dashboard">
-      <h1>Raspberry Pi Control Dashboard</h1>
+    <div class="bg-particles">
+      <div class="particle"></div>
+      <div class="particle"></div>
+      <div class="particle"></div>
+      <div class="particle"></div>
+      <div class="particle"></div>
+      <div class="particle"></div>
+    </div>
 
-      <div class="status">
-        <div class="indicator" id="statusIndicator"></div>
-        <span id="statusText">Disconnected</span>
-      </div>
+    <div class="app">
+      <!-- Sidebar -->
+      <aside class="sidebar">
+        <div class="sidebar-header">
+          <div class="logo">
+            <div class="logo-icon">
+              <i class="fas fa-microchip"></i>
+            </div>
+            <div class="logo-text">
+              <h1>RasPi</h1>
+              <span>Control Center</span>
+            </div>
+          </div>
+        </div>
 
-      <div class="controls">
-        <div class="section">
-          <h2>Connection Controls</h2>
-          <button onclick="connect()">Connect</button>
-          <button onclick="disconnect()">Disconnect</button>
-          <button onclick="shutdownPi()" class="danger">
-            Shutdown Raspberry Pi
+        <nav class="sidebar-nav">
+          <a href="#" class="nav-item active" data-page="dashboard" onclick="switchPage('dashboard', this)">
+            <i class="fas fa-gauge-high"></i>
+            <span>Dashboard</span>
+          </a>
+          <a href="#" class="nav-item" data-page="camera" onclick="switchPage('camera', this)">
+            <i class="fas fa-video"></i>
+            <span>Camera</span>
+          </a>
+          <a href="#" class="nav-item" data-page="network" onclick="switchPage('network', this)">
+            <i class="fas fa-network-wired"></i>
+            <span>Network</span>
+          </a>
+          <a href="#" class="nav-item" data-page="monitoring" onclick="switchPage('monitoring', this)">
+            <i class="fas fa-chart-line"></i>
+            <span>Monitoring</span>
+          </a>
+          <a href="#" class="nav-item" data-page="settings" onclick="switchPage('settings', this)">
+            <i class="fas fa-gear"></i>
+            <span>Settings</span>
+          </a>
+        </nav>
+
+        <div class="sidebar-footer">
+          <div class="pi-info">
+            <div class="pi-info-row">
+              <i class="fas fa-server"></i>
+              <span id="piModelSidebar">Raspberry Pi</span>
+            </div>
+            <div class="pi-info-row">
+              <i class="fas fa-code-branch"></i>
+              <span>v2.1.0</span>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Main Content -->
+      <main class="main-content">
+        <header class="topbar">
+          <button class="menu-toggle" id="menuToggle">
+            <i class="fas fa-bars"></i>
           </button>
+          <div class="topbar-left">
+            <h2 id="pageTitle">Dashboard</h2>
+            <p class="breadcrumb" id="pageBreadcrumb">Home / Dashboard</p>
+          </div>
+          <div class="topbar-right">
+            <div class="connection-badge" id="connectionBadge">
+              <div class="badge-dot" id="badgeDot"></div>
+              <span id="statusText">Disconnected</span>
+            </div>
+            <div class="datetime" id="datetime"></div>
+          </div>
+        </header>
+
+        <!-- ==================== DASHBOARD PAGE ==================== -->
+        <div class="content page-content active" id="page-dashboard">
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-icon blue"><i class="fas fa-link"></i></div>
+              <div class="stat-info">
+                <span class="stat-label">Status</span>
+                <span class="stat-value" id="statStatus">Offline</span>
+              </div>
+              <div class="stat-trend down"><i class="fas fa-circle"></i></div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon green"><i class="fas fa-clock"></i></div>
+              <div class="stat-info">
+                <span class="stat-label">Uptime</span>
+                <span class="stat-value" id="statUptime">--:--:--</span>
+              </div>
+              <div class="stat-trend up"><i class="fas fa-arrow-up"></i></div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon purple"><i class="fas fa-terminal"></i></div>
+              <div class="stat-info">
+                <span class="stat-label">Commands Sent</span>
+                <span class="stat-value" id="statCommands">0</span>
+              </div>
+              <div class="stat-trend up"><i class="fas fa-arrow-up"></i></div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon orange"><i class="fas fa-camera"></i></div>
+              <div class="stat-info">
+                <span class="stat-label">Stream Mode</span>
+                <span class="stat-value" id="statMode">None</span>
+              </div>
+              <div class="stat-trend neutral"><i class="fas fa-minus"></i></div>
+            </div>
+          </div>
+
+          <!-- Live Stream Panel -->
+          <div class="panel stream-panel">
+            <div class="panel-header">
+              <div class="panel-title"><i class="fas fa-video"></i><h3>Live Camera Feed</h3></div>
+              <div class="stream-controls-header">
+                <div class="panel-badge" id="streamBadge">No Feed</div>
+                <button class="btn-icon" onclick="toggleFullscreen()" title="Fullscreen"><i class="fas fa-expand"></i></button>
+              </div>
+            </div>
+            <div class="panel-body stream-body">
+              <div class="stream-container" id="streamContainer">
+                <div class="stream-placeholder" id="streamPlaceholder">
+                  <div class="placeholder-content">
+                    <div class="placeholder-icon"><i class="fas fa-satellite-dish"></i></div>
+                    <h4>No Active Stream</h4>
+                    <p>Select a camera mode below to start streaming</p>
+                  </div>
+                  <div class="scan-line"></div>
+                </div>
+                <img id="streamImage" class="stream-image" alt="Live Stream" style="display: none" />
+                <div class="stream-overlay" id="streamOverlay" style="display: none">
+                  <div class="stream-overlay-top">
+                    <span class="stream-live-badge"><span class="live-dot"></span> LIVE</span>
+                    <span class="stream-mode-label" id="streamModeLabel">Camera</span>
+                  </div>
+                  <div class="stream-overlay-bottom">
+                    <span class="stream-resolution">640×480</span>
+                    <span class="stream-fps" id="streamFps">-- FPS</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Control Panels -->
+          <div class="panels-grid">
+            <div class="panel">
+              <div class="panel-header">
+                <div class="panel-title"><i class="fas fa-plug"></i><h3>Connection Controls</h3></div>
+                <div class="panel-badge" id="connPanelBadge">Offline</div>
+              </div>
+              <div class="panel-body">
+                <div class="connection-visual">
+                  <div class="conn-node local"><i class="fas fa-laptop"></i><span>Local</span></div>
+                  <div class="conn-line" id="connLine"><div class="conn-pulse" id="connPulse"></div></div>
+                  <div class="conn-node remote" id="remoteNode"><i class="fas fa-server"></i><span>Pi</span></div>
+                </div>
+                <div class="btn-group">
+                  <button class="btn btn-success" onclick="connect()"><i class="fas fa-link"></i><span>Connect</span></button>
+                  <button class="btn btn-secondary" onclick="disconnect()"><i class="fas fa-unlink"></i><span>Disconnect</span></button>
+                  <button class="btn btn-danger" onclick="shutdownPi()"><i class="fas fa-power-off"></i><span>Shutdown Pi</span></button>
+                </div>
+              </div>
+            </div>
+
+            <div class="panel">
+              <div class="panel-header">
+                <div class="panel-title"><i class="fas fa-sliders"></i><h3>Camera & Vision Controls</h3></div>
+                <div class="panel-badge green">Available</div>
+              </div>
+              <div class="panel-body">
+                <div class="mode-selector">
+                  <div class="mode-card" id="modeCamera" onclick="openCamera()">
+                    <div class="mode-icon"><i class="fas fa-camera"></i></div>
+                    <div class="mode-info"><span class="mode-name">Camera</span><span class="mode-desc">Raw video feed</span></div>
+                  </div>
+                  <div class="mode-card" id="modeFace" onclick="faceDetect()">
+                    <div class="mode-icon face"><i class="fas fa-face-smile"></i></div>
+                    <div class="mode-info"><span class="mode-name">Face Detect</span><span class="mode-desc">Haar cascade detection</span></div>
+                  </div>
+                  <div class="mode-card" id="modeRed" onclick="redDetect()">
+                    <div class="mode-icon red"><i class="fas fa-bullseye"></i></div>
+                    <div class="mode-info"><span class="mode-name">Red Detect</span><span class="mode-desc">HSV color tracking</span></div>
+                  </div>
+                  <div class="mode-card kill" onclick="killAll()">
+                    <div class="mode-icon kill"><i class="fas fa-stop"></i></div>
+                    <div class="mode-info"><span class="mode-name">Stop All</span><span class="mode-desc">Kill all processes</span></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Activity Log -->
+          <div class="panel log-panel">
+            <div class="panel-header">
+              <div class="panel-title"><i class="fas fa-scroll"></i><h3>Activity Log</h3></div>
+              <button class="btn-icon" onclick="clearLog()"><i class="fas fa-trash"></i></button>
+            </div>
+            <div class="panel-body">
+              <div class="log-entries" id="logEntries">
+                <div class="log-entry">
+                  <div class="log-time">--:--:--</div>
+                  <div class="log-dot info"></div>
+                  <div class="log-message">System initialized. Waiting for connection...</div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
-        <div class="section">
-          <h2>Camera Controls</h2>
-          <button onclick="openCamera()">Open Camera</button>
-          <button onclick="faceDetect()">Face Detect</button>
-          <button onclick="redDetect()">Red Detect</button>
-          <button onclick="killAll()">Kill All Programs</button>
-        </div>
-      </div>
+        <!-- ==================== CAMERA PAGE ==================== -->
+        <div class="content page-content" id="page-camera">
+          <!-- Large Stream View -->
+          <div class="panel stream-panel-full">
+            <div class="panel-header">
+              <div class="panel-title"><i class="fas fa-video"></i><h3>Camera Stream</h3></div>
+              <div class="stream-controls-header">
+                <div class="panel-badge" id="camPageStreamBadge">No Feed</div>
+                <button class="btn-icon" onclick="takeScreenshot()" title="Screenshot"><i class="fas fa-camera-retro"></i></button>
+                <button class="btn-icon" onclick="toggleFullscreen()" title="Fullscreen"><i class="fas fa-expand"></i></button>
+              </div>
+            </div>
+            <div class="panel-body stream-body">
+              <div class="stream-container stream-container-large" id="streamContainerCam">
+                <div class="stream-placeholder" id="camStreamPlaceholder">
+                  <div class="placeholder-content">
+                    <div class="placeholder-icon"><i class="fas fa-satellite-dish"></i></div>
+                    <h4>No Active Stream</h4>
+                    <p>Use the controls below to start a camera stream</p>
+                  </div>
+                  <div class="scan-line"></div>
+                </div>
+                <img id="camStreamImage" class="stream-image" alt="Live Stream" style="display: none" />
+                <div class="stream-overlay" id="camStreamOverlay" style="display: none">
+                  <div class="stream-overlay-top">
+                    <span class="stream-live-badge"><span class="live-dot"></span> LIVE</span>
+                    <span class="stream-mode-label" id="camStreamModeLabel">Camera</span>
+                  </div>
+                  <div class="stream-overlay-bottom">
+                    <span class="stream-resolution">640×480</span>
+                    <span class="stream-fps" id="camStreamFps">-- FPS</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
 
-      <div class="log">
-        <h3>Last Action</h3>
-        <p id="logText">No action performed yet</p>
+          <!-- Camera Controls Row -->
+          <div class="controls-row">
+            <div class="panel">
+              <div class="panel-header">
+                <div class="panel-title"><i class="fas fa-sliders"></i><h3>Stream Mode</h3></div>
+              </div>
+              <div class="panel-body">
+                <div class="cam-btn-row">
+                  <button class="btn btn-primary" onclick="openCamera()"><i class="fas fa-camera"></i> Camera</button>
+                  <button class="btn btn-accent" onclick="faceDetect()"><i class="fas fa-face-smile"></i> Face Detect</button>
+                  <button class="btn btn-warning" onclick="redDetect()"><i class="fas fa-bullseye"></i> Red Detect</button>
+                  <button class="btn btn-danger" onclick="killAll()"><i class="fas fa-stop"></i> Stop All</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="panel">
+              <div class="panel-header">
+                <div class="panel-title"><i class="fas fa-info-circle"></i><h3>Stream Info</h3></div>
+              </div>
+              <div class="panel-body">
+                <div class="info-grid">
+                  <div class="info-item">
+                    <span class="info-label">Resolution</span>
+                    <span class="info-value" id="camResolution">640 × 480</span>
+                  </div>
+                  <div class="info-item">
+                    <span class="info-label">Format</span>
+                    <span class="info-value">MJPEG</span>
+                  </div>
+                  <div class="info-item">
+                    <span class="info-label">Active Mode</span>
+                    <span class="info-value" id="camActiveMode">None</span>
+                  </div>
+                  <div class="info-item">
+                    <span class="info-label">Stream Port</span>
+                    <span class="info-value">8080</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Screenshots Gallery -->
+          <div class="panel">
+            <div class="panel-header">
+              <div class="panel-title"><i class="fas fa-images"></i><h3>Screenshots</h3></div>
+              <button class="btn-icon" onclick="clearScreenshots()" title="Clear all"><i class="fas fa-trash"></i></button>
+            </div>
+            <div class="panel-body">
+              <div class="screenshots-gallery" id="screenshotsGallery">
+                <div class="no-screenshots">
+                  <i class="fas fa-image"></i>
+                  <p>No screenshots yet. Click the camera icon above to capture.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ==================== NETWORK PAGE ==================== -->
+        <div class="content page-content" id="page-network">
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-icon green"><i class="fas fa-wifi"></i></div>
+              <div class="stat-info">
+                <span class="stat-label">Connection</span>
+                <span class="stat-value" id="netConnType">--</span>
+              </div>
+              <div class="stat-trend neutral"><i class="fas fa-minus"></i></div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon blue"><i class="fas fa-signal"></i></div>
+              <div class="stat-info">
+                <span class="stat-label">Signal Strength</span>
+                <span class="stat-value" id="netSignal">--</span>
+              </div>
+              <div class="stat-trend neutral"><i class="fas fa-minus"></i></div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon purple"><i class="fas fa-exchange-alt"></i></div>
+              <div class="stat-info">
+                <span class="stat-label">Latency</span>
+                <span class="stat-value" id="netLatency">-- ms</span>
+              </div>
+              <div class="stat-trend neutral"><i class="fas fa-minus"></i></div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon orange"><i class="fas fa-server"></i></div>
+              <div class="stat-info">
+                <span class="stat-label">SSH Port</span>
+                <span class="stat-value">22</span>
+              </div>
+              <div class="stat-trend neutral"><i class="fas fa-minus"></i></div>
+            </div>
+          </div>
+
+          <div class="panels-grid">
+            <!-- Network Details -->
+            <div class="panel">
+              <div class="panel-header">
+                <div class="panel-title"><i class="fas fa-network-wired"></i><h3>Network Information</h3></div>
+                <button class="btn-icon" onclick="refreshNetworkInfo()" title="Refresh"><i class="fas fa-sync-alt"></i></button>
+              </div>
+              <div class="panel-body">
+                <div class="detail-list" id="networkDetails">
+                  <div class="detail-item">
+                    <span class="detail-label"><i class="fas fa-map-marker-alt"></i> IP Address</span>
+                    <span class="detail-value" id="netIP">--</span>
+                  </div>
+                  <div class="detail-item">
+                    <span class="detail-label"><i class="fas fa-mask"></i> Subnet Mask</span>
+                    <span class="detail-value" id="netSubnet">--</span>
+                  </div>
+                  <div class="detail-item">
+                    <span class="detail-label"><i class="fas fa-door-open"></i> Gateway</span>
+                    <span class="detail-value" id="netGateway">--</span>
+                  </div>
+                  <div class="detail-item">
+                    <span class="detail-label"><i class="fas fa-barcode"></i> MAC Address</span>
+                    <span class="detail-value" id="netMAC">--</span>
+                  </div>
+                  <div class="detail-item">
+                    <span class="detail-label"><i class="fas fa-globe"></i> DNS Server</span>
+                    <span class="detail-value" id="netDNS">--</span>
+                  </div>
+                  <div class="detail-item">
+                    <span class="detail-label"><i class="fas fa-tag"></i> Hostname</span>
+                    <span class="detail-value" id="netHostname">--</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Ping Test -->
+            <div class="panel">
+              <div class="panel-header">
+                <div class="panel-title"><i class="fas fa-satellite-dish"></i><h3>Connectivity Test</h3></div>
+              </div>
+              <div class="panel-body">
+                <div class="ping-section">
+                  <div class="ping-visual">
+                    <div class="ping-circle" id="pingCircle">
+                      <span class="ping-value" id="pingValue">--</span>
+                      <span class="ping-unit">ms</span>
+                    </div>
+                  </div>
+                  <div class="ping-stats">
+                    <div class="ping-stat">
+                      <span class="ping-stat-label">Min</span>
+                      <span class="ping-stat-value" id="pingMin">--</span>
+                    </div>
+                    <div class="ping-stat">
+                      <span class="ping-stat-label">Avg</span>
+                      <span class="ping-stat-value" id="pingAvg">--</span>
+                    </div>
+                    <div class="ping-stat">
+                      <span class="ping-stat-label">Max</span>
+                      <span class="ping-stat-value" id="pingMax">--</span>
+                    </div>
+                    <div class="ping-stat">
+                      <span class="ping-stat-label">Loss</span>
+                      <span class="ping-stat-value" id="pingLoss">--</span>
+                    </div>
+                  </div>
+                  <button class="btn btn-primary btn-full" onclick="runPingTest()">
+                    <i class="fas fa-satellite-dish"></i> Run Ping Test
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Connected Interfaces -->
+          <div class="panel">
+            <div class="panel-header">
+              <div class="panel-title"><i class="fas fa-ethernet"></i><h3>Network Interfaces</h3></div>
+              <button class="btn-icon" onclick="refreshNetworkInfo()" title="Refresh"><i class="fas fa-sync-alt"></i></button>
+            </div>
+            <div class="panel-body">
+              <div class="interfaces-table" id="interfacesTable">
+                <div class="table-header">
+                  <span>Interface</span>
+                  <span>IP Address</span>
+                  <span>Status</span>
+                  <span>Type</span>
+                </div>
+                <div class="table-row placeholder-row">
+                  <span colspan="4">Connect to Raspberry Pi to view interfaces</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ==================== MONITORING PAGE ==================== -->
+        <div class="content page-content" id="page-monitoring">
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-icon blue"><i class="fas fa-microchip"></i></div>
+              <div class="stat-info">
+                <span class="stat-label">CPU Usage</span>
+                <span class="stat-value" id="monCPU">--%</span>
+              </div>
+              <div class="stat-trend neutral"><i class="fas fa-minus"></i></div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon green"><i class="fas fa-memory"></i></div>
+              <div class="stat-info">
+                <span class="stat-label">Memory Usage</span>
+                <span class="stat-value" id="monRAM">--%</span>
+              </div>
+              <div class="stat-trend neutral"><i class="fas fa-minus"></i></div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon orange"><i class="fas fa-temperature-high"></i></div>
+              <div class="stat-info">
+                <span class="stat-label">CPU Temp</span>
+                <span class="stat-value" id="monTemp">--°C</span>
+              </div>
+              <div class="stat-trend neutral"><i class="fas fa-minus"></i></div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon purple"><i class="fas fa-hard-drive"></i></div>
+              <div class="stat-info">
+                <span class="stat-label">Disk Usage</span>
+                <span class="stat-value" id="monDisk">--%</span>
+              </div>
+              <div class="stat-trend neutral"><i class="fas fa-minus"></i></div>
+            </div>
+          </div>
+
+          <!-- Gauges Row -->
+          <div class="panels-grid">
+            <div class="panel">
+              <div class="panel-header">
+                <div class="panel-title"><i class="fas fa-microchip"></i><h3>CPU & Memory</h3></div>
+                <button class="btn-icon" onclick="refreshMonitoring()" title="Refresh"><i class="fas fa-sync-alt"></i></button>
+              </div>
+              <div class="panel-body">
+                <div class="gauges-row">
+                  <div class="gauge-container">
+                    <div class="gauge">
+                      <svg viewBox="0 0 120 120">
+                        <circle cx="60" cy="60" r="52" class="gauge-bg" />
+                        <circle cx="60" cy="60" r="52" class="gauge-fill cpu-gauge" id="cpuGauge"
+                          stroke-dasharray="326.73" stroke-dashoffset="326.73" />
+                      </svg>
+                      <div class="gauge-center">
+                        <span class="gauge-value" id="cpuGaugeVal">--</span>
+                        <span class="gauge-unit">%</span>
+                      </div>
+                    </div>
+                    <span class="gauge-label">CPU</span>
+                  </div>
+                  <div class="gauge-container">
+                    <div class="gauge">
+                      <svg viewBox="0 0 120 120">
+                        <circle cx="60" cy="60" r="52" class="gauge-bg" />
+                        <circle cx="60" cy="60" r="52" class="gauge-fill ram-gauge" id="ramGauge"
+                          stroke-dasharray="326.73" stroke-dashoffset="326.73" />
+                      </svg>
+                      <div class="gauge-center">
+                        <span class="gauge-value" id="ramGaugeVal">--</span>
+                        <span class="gauge-unit">%</span>
+                      </div>
+                    </div>
+                    <span class="gauge-label">Memory</span>
+                  </div>
+                  <div class="gauge-container">
+                    <div class="gauge">
+                      <svg viewBox="0 0 120 120">
+                        <circle cx="60" cy="60" r="52" class="gauge-bg" />
+                        <circle cx="60" cy="60" r="52" class="gauge-fill temp-gauge" id="tempGauge"
+                          stroke-dasharray="326.73" stroke-dashoffset="326.73" />
+                      </svg>
+                      <div class="gauge-center">
+                        <span class="gauge-value" id="tempGaugeVal">--</span>
+                        <span class="gauge-unit">°C</span>
+                      </div>
+                    </div>
+                    <span class="gauge-label">Temperature</span>
+                  </div>
+                  <div class="gauge-container">
+                    <div class="gauge">
+                      <svg viewBox="0 0 120 120">
+                        <circle cx="60" cy="60" r="52" class="gauge-bg" />
+                        <circle cx="60" cy="60" r="52" class="gauge-fill disk-gauge" id="diskGauge"
+                          stroke-dasharray="326.73" stroke-dashoffset="326.73" />
+                      </svg>
+                      <div class="gauge-center">
+                        <span class="gauge-value" id="diskGaugeVal">--</span>
+                        <span class="gauge-unit">%</span>
+                      </div>
+                    </div>
+                    <span class="gauge-label">Disk</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- System Info -->
+            <div class="panel">
+              <div class="panel-header">
+                <div class="panel-title"><i class="fas fa-info-circle"></i><h3>System Information</h3></div>
+              </div>
+              <div class="panel-body">
+                <div class="detail-list">
+                  <div class="detail-item">
+                    <span class="detail-label"><i class="fas fa-server"></i> Model</span>
+                    <span class="detail-value" id="sysModel">--</span>
+                  </div>
+                  <div class="detail-item">
+                    <span class="detail-label"><i class="fas fa-linux"></i> OS</span>
+                    <span class="detail-value" id="sysOS">--</span>
+                  </div>
+                  <div class="detail-item">
+                    <span class="detail-label"><i class="fas fa-code"></i> Kernel</span>
+                    <span class="detail-value" id="sysKernel">--</span>
+                  </div>
+                  <div class="detail-item">
+                    <span class="detail-label"><i class="fas fa-python"></i> Python</span>
+                    <span class="detail-value" id="sysPython">--</span>
+                  </div>
+                  <div class="detail-item">
+                    <span class="detail-label"><i class="fas fa-clock"></i> System Uptime</span>
+                    <span class="detail-value" id="sysUptime">--</span>
+                  </div>
+                  <div class="detail-item">
+                    <span class="detail-label"><i class="fas fa-memory"></i> Total RAM</span>
+                    <span class="detail-value" id="sysTotalRAM">--</span>
+                  </div>
+                  <div class="detail-item">
+                    <span class="detail-label"><i class="fas fa-hard-drive"></i> Total Disk</span>
+                    <span class="detail-value" id="sysTotalDisk">--</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Processes -->
+          <div class="panel">
+            <div class="panel-header">
+              <div class="panel-title"><i class="fas fa-list-check"></i><h3>Top Processes</h3></div>
+              <button class="btn-icon" onclick="refreshMonitoring()" title="Refresh"><i class="fas fa-sync-alt"></i></button>
+            </div>
+            <div class="panel-body">
+              <div class="processes-table" id="processesTable">
+                <div class="table-header">
+                  <span>PID</span>
+                  <span>Process</span>
+                  <span>CPU %</span>
+                  <span>MEM %</span>
+                </div>
+                <div class="table-row placeholder-row">
+                  <span>Connect to view running processes</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ==================== SETTINGS PAGE ==================== -->
+        <div class="content page-content" id="page-settings">
+          <div class="panels-grid">
+            <!-- Connection Settings -->
+            <div class="panel">
+              <div class="panel-header">
+                <div class="panel-title"><i class="fas fa-plug"></i><h3>Connection Settings</h3></div>
+              </div>
+              <div class="panel-body">
+                <div class="settings-form">
+                  <div class="form-group">
+                    <label for="settingIP"><i class="fas fa-map-marker-alt"></i> Raspberry Pi IP</label>
+                    <input type="text" id="settingIP" value="10.92.193.19" placeholder="e.g. 192.168.1.100" />
+                  </div>
+                  <div class="form-group">
+                    <label for="settingUser"><i class="fas fa-user"></i> Username</label>
+                    <input type="text" id="settingUser" value="pan_tilt" placeholder="e.g. pi" />
+                  </div>
+                  <div class="form-group">
+                    <label for="settingPass"><i class="fas fa-lock"></i> Password</label>
+                    <div class="password-input">
+                      <input type="password" id="settingPass" value="9876543210" placeholder="Enter password" />
+                      <button class="btn-icon toggle-pass" onclick="togglePassword()"><i class="fas fa-eye" id="passEyeIcon"></i></button>
+                    </div>
+                  </div>
+                  <div class="form-group">
+                    <label for="settingPort"><i class="fas fa-door-open"></i> Stream Port</label>
+                    <input type="number" id="settingPort" value="8080" placeholder="e.g. 8080" />
+                  </div>
+                  <button class="btn btn-primary btn-full" onclick="saveConnectionSettings()">
+                    <i class="fas fa-save"></i> Save Settings
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Application Settings -->
+            <div class="panel">
+              <div class="panel-header">
+                <div class="panel-title"><i class="fas fa-palette"></i><h3>Application Settings</h3></div>
+              </div>
+              <div class="panel-body">
+                <div class="settings-form">
+                  <div class="setting-toggle">
+                    <div class="setting-toggle-info">
+                      <span class="setting-toggle-label">Auto-connect on launch</span>
+                      <span class="setting-toggle-desc">Automatically connect to Pi when app starts</span>
+                    </div>
+                    <label class="switch">
+                      <input type="checkbox" id="settingAutoConnect" />
+                      <span class="slider"></span>
+                    </label>
+                  </div>
+                  <div class="setting-toggle">
+                    <div class="setting-toggle-info">
+                      <span class="setting-toggle-label">Auto-refresh monitoring</span>
+                      <span class="setting-toggle-desc">Refresh system stats every 5 seconds</span>
+                    </div>
+                    <label class="switch">
+                      <input type="checkbox" id="settingAutoRefresh" checked onchange="toggleAutoRefresh()" />
+                      <span class="slider"></span>
+                    </label>
+                  </div>
+                  <div class="setting-toggle">
+                    <div class="setting-toggle-info">
+                      <span class="setting-toggle-label">Toast notifications</span>
+                      <span class="setting-toggle-desc">Show popup notifications for actions</span>
+                    </div>
+                    <label class="switch">
+                      <input type="checkbox" id="settingToasts" checked />
+                      <span class="slider"></span>
+                    </label>
+                  </div>
+                  <div class="setting-toggle">
+                    <div class="setting-toggle-info">
+                      <span class="setting-toggle-label">Sound effects</span>
+                      <span class="setting-toggle-desc">Play sounds on connect/disconnect</span>
+                    </div>
+                    <label class="switch">
+                      <input type="checkbox" id="settingSounds" />
+                      <span class="slider"></span>
+                    </label>
+                  </div>
+                  <div class="form-group">
+                    <label for="settingRefreshRate"><i class="fas fa-clock"></i> Monitoring Refresh Rate</label>
+                    <select id="settingRefreshRate" onchange="updateRefreshRate()">
+                      <option value="2000">2 seconds</option>
+                      <option value="5000" selected>5 seconds</option>
+                      <option value="10000">10 seconds</option>
+                      <option value="30000">30 seconds</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Terminal -->
+          <div class="panel">
+            <div class="panel-header">
+              <div class="panel-title"><i class="fas fa-terminal"></i><h3>SSH Terminal</h3></div>
+              <button class="btn-icon" onclick="clearTerminal()" title="Clear"><i class="fas fa-eraser"></i></button>
+            </div>
+            <div class="panel-body">
+              <div class="terminal" id="terminal">
+                <div class="terminal-output" id="terminalOutput">
+                  <div class="terminal-line system">Welcome to RasPi Control Center Terminal</div>
+                  <div class="terminal-line system">Type a command and press Enter to execute on the Raspberry Pi</div>
+                </div>
+                <div class="terminal-input-row">
+                  <span class="terminal-prompt">pi@raspberrypi:~$</span>
+                  <input type="text" class="terminal-input" id="terminalInput" placeholder="Enter command..."
+                    onkeydown="if(event.key==='Enter') executeTerminalCmd()" />
+                  <button class="btn btn-primary btn-sm" onclick="executeTerminalCmd()"><i class="fas fa-play"></i></button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- About & Danger Zone -->
+          <div class="panels-grid">
+            <div class="panel">
+              <div class="panel-header">
+                <div class="panel-title"><i class="fas fa-circle-info"></i><h3>About</h3></div>
+              </div>
+              <div class="panel-body">
+                <div class="about-section">
+                  <div class="about-logo">
+                    <div class="logo-icon large"><i class="fas fa-microchip"></i></div>
+                  </div>
+                  <h4>RasPi Control Center</h4>
+                  <p class="about-version">Version 2.1.0</p>
+                  <p class="about-desc">A professional web-based dashboard for controlling and monitoring your Raspberry Pi remotely via SSH.</p>
+                  <div class="about-tech">
+                    <span class="tech-badge">Flask</span>
+                    <span class="tech-badge">Paramiko</span>
+                    <span class="tech-badge">OpenCV</span>
+                    <span class="tech-badge">MJPEG</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="panel danger-panel">
+              <div class="panel-header">
+                <div class="panel-title"><i class="fas fa-triangle-exclamation"></i><h3>Danger Zone</h3></div>
+              </div>
+              <div class="panel-body">
+                <div class="danger-actions">
+                  <div class="danger-item">
+                    <div class="danger-info">
+                      <span class="danger-label">Reboot Raspberry Pi</span>
+                      <span class="danger-desc">Restart the Pi. You'll need to reconnect after.</span>
+                    </div>
+                    <button class="btn btn-warning btn-sm" onclick="rebootPi()"><i class="fas fa-rotate"></i> Reboot</button>
+                  </div>
+                  <div class="danger-item">
+                    <div class="danger-info">
+                      <span class="danger-label">Shutdown Raspberry Pi</span>
+                      <span class="danger-desc">Power off the Pi completely. Requires physical access to restart.</span>
+                    </div>
+                    <button class="btn btn-danger btn-sm" onclick="shutdownPi()"><i class="fas fa-power-off"></i> Shutdown</button>
+                  </div>
+                  <div class="danger-item">
+                    <div class="danger-info">
+                      <span class="danger-label">Kill All Processes</span>
+                      <span class="danger-desc">Stop all camera and streaming processes.</span>
+                    </div>
+                    <button class="btn btn-danger btn-sm" onclick="killAll()"><i class="fas fa-skull"></i> Kill All</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ==================== NETWORK PAGE (already above) ==================== -->
+      </main>
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div class="modal-overlay" id="modalOverlay">
+      <div class="modal">
+        <div class="modal-icon"><i class="fas fa-exclamation-triangle" id="modalIcon"></i></div>
+        <h3 id="modalTitle">Confirm Action</h3>
+        <p id="modalMessage">Are you sure?</p>
+        <div class="modal-actions">
+          <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+          <button class="btn btn-danger" id="modalConfirmBtn" onclick="confirmShutdown()">Confirm</button>
+        </div>
       </div>
     </div>
+
+    <div class="toast-container" id="toastContainer"></div>
 
     <script src="script.js"></script>
   </body>
