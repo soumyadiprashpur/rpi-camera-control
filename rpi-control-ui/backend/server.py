@@ -45,11 +45,15 @@ def stop_all_streams():
     run_command("pkill -f cam_open.py")
     run_command("pkill -f face_detect.py")
     run_command("pkill -f red_detect.py")
+    # Kill any lingering rpicam or ffmpeg processes
+    run_command("pkill -f rpicam-vid")
+    run_command("pkill -f rpicam-still")
+    run_command("pkill -f 'ffmpeg.*mjpeg'")
     current_mode = None
     time.sleep(0.5)
 
 
-def wait_for_stream(timeout=8):
+def wait_for_stream(timeout=12):
     url = f"http://{RPI_IP}:{STREAM_PORT}/health"
     start = time.time()
     while time.time() - start < timeout:
@@ -93,33 +97,56 @@ def disconnect():
 def camera():
     global current_mode
     stop_all_streams()
-    run_command(f"nohup python3 cam_stream.py --port {STREAM_PORT} > /dev/null 2>&1 &")
-    if wait_for_stream():
+    run_command(
+        f"nohup python3 cam_stream.py --port {STREAM_PORT} > /tmp/cam_stream.log 2>&1 &"
+    )
+    if wait_for_stream(timeout=12):
         current_mode = "camera"
-        return jsonify({"status": "success", "message": "Camera started", "stream_url": f"http://{RPI_IP}:{STREAM_PORT}/stream"})
-    return jsonify({"status": "error", "message": "Stream failed to start"}), 500
+        return jsonify({
+            "status": "success",
+            "message": "Camera started (HD)",
+            "stream_url": f"http://{RPI_IP}:{STREAM_PORT}/stream"
+        })
+    
+    # If failed, check logs for debugging
+    log_out, _ = run_command("tail -20 /tmp/cam_stream.log")
+    return jsonify({
+        "status": "error",
+        "message": "Stream failed to start",
+        "log": log_out
+    }), 500
 
 
 @app.route("/face")
 def face():
     global current_mode
     stop_all_streams()
-    run_command(f"nohup python3 face_stream.py --port {STREAM_PORT} > /dev/null 2>&1 &")
-    if wait_for_stream():
+    run_command(f"nohup python3 face_stream.py --port {STREAM_PORT} > /tmp/face_stream.log 2>&1 &")
+    if wait_for_stream(timeout=12):
         current_mode = "face"
-        return jsonify({"status": "success", "message": "Face detection started", "stream_url": f"http://{RPI_IP}:{STREAM_PORT}/stream"})
-    return jsonify({"status": "error", "message": "Stream failed to start"}), 500
+        return jsonify({
+            "status": "success",
+            "message": "Face detection started",
+            "stream_url": f"http://{RPI_IP}:{STREAM_PORT}/stream"
+        })
+    log_out, _ = run_command("tail -20 /tmp/face_stream.log")
+    return jsonify({"status": "error", "message": "Stream failed to start", "log": log_out}), 500
 
 
 @app.route("/red")
 def red():
     global current_mode
     stop_all_streams()
-    run_command(f"nohup python3 red_stream.py --port {STREAM_PORT} > /dev/null 2>&1 &")
-    if wait_for_stream():
+    run_command(f"nohup python3 red_stream.py --port {STREAM_PORT} > /tmp/red_stream.log 2>&1 &")
+    if wait_for_stream(timeout=12):
         current_mode = "red"
-        return jsonify({"status": "success", "message": "Red detection started", "stream_url": f"http://{RPI_IP}:{STREAM_PORT}/stream"})
-    return jsonify({"status": "error", "message": "Stream failed to start"}), 500
+        return jsonify({
+            "status": "success",
+            "message": "Red detection started",
+            "stream_url": f"http://{RPI_IP}:{STREAM_PORT}/stream"
+        })
+    log_out, _ = run_command("tail -20 /tmp/red_stream.log")
+    return jsonify({"status": "error", "message": "Stream failed to start", "log": log_out}), 500
 
 
 @app.route("/kill")
@@ -156,6 +183,21 @@ def video_feed():
     return Response(proxy_stream(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 
+# ========== SNAPSHOT ==========
+
+@app.route("/snapshot")
+def snapshot():
+    """Proxy high-res snapshot from RPi"""
+    try:
+        r = requests.get(
+            f"http://{RPI_IP}:{STREAM_PORT}/snapshot",
+            timeout=10
+        )
+        return Response(r.content, mimetype='image/jpeg')
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
 # ========== SYSTEM STATS ==========
 
 @app.route("/system/stats")
@@ -184,7 +226,6 @@ def system_stats():
         total_ram_out, _ = run_command("free -h | grep Mem | awk '{print $2}'")
         total_disk_out, _ = run_command("df -h / | tail -1 | awk '{print $2}'")
 
-        # Top processes
         proc_out, _ = run_command("ps aux --sort=-%cpu | head -8 | tail -7 | awk '{printf \"%s|%s|%s|%s\\n\", $2, $11, $3, $4}'")
         processes = []
         if proc_out:
@@ -222,23 +263,19 @@ def system_network():
         gateway_out, _ = run_command("ip route | grep default | awk '{print $3}'")
         dns_out, _ = run_command("cat /etc/resolv.conf | grep nameserver | head -1 | awk '{print $2}'")
 
-        # Get primary interface info
         iface_out, _ = run_command("ip -o addr show | grep 'inet ' | grep -v '127.0.0.1'")
         mac_out, _ = run_command("cat /sys/class/net/$(ip route | grep default | awk '{print $5}')/address 2>/dev/null")
         subnet_out, _ = run_command("ip -o addr show | grep 'inet ' | grep -v '127.0.0.1' | head -1 | awk '{print $4}'")
 
-        # Connection type
         default_iface, _ = run_command("ip route | grep default | awk '{print $5}'")
         conn_type = "WiFi" if default_iface and "wlan" in default_iface else "Ethernet"
 
-        # Signal strength (WiFi only)
         signal = "--"
         if "wlan" in (default_iface or ""):
             signal_out, _ = run_command("iwconfig wlan0 2>/dev/null | grep 'Signal level' | awk -F'=' '{print $3}' | awk '{print $1}'")
             if signal_out:
                 signal = f"{signal_out} dBm"
 
-        # Build interfaces list
         interfaces = []
         if_out, _ = run_command("ip -o link show | awk '{print $2}' | tr -d ':'")
         if if_out:
@@ -281,7 +318,6 @@ def system_network():
 def system_ping():
     try:
         ping_out, _ = run_command("ping -c 4 8.8.8.8 2>/dev/null | tail -1")
-        # Parse: rtt min/avg/max/mdev = 1.234/5.678/9.012/3.456 ms
         loss_out, _ = run_command("ping -c 4 8.8.8.8 2>/dev/null | grep 'packet loss' | awk '{print $6}'")
 
         min_val = avg_val = max_val = "--"
@@ -312,7 +348,6 @@ def terminal():
     if not cmd:
         return jsonify({"stdout": "", "stderr": "No command provided"})
 
-    # Block dangerous commands
     dangerous = ["rm -rf /", "mkfs", "dd if="]
     for d in dangerous:
         if d in cmd:
