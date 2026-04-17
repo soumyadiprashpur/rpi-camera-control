@@ -64,7 +64,6 @@ class PID:
         self.integral = max(-50, min(50, self.integral))
         i = self.ki * self.integral
 
-        # ───── CHANGED THIS LINE ─────
         # Frame-based derivative ignores time spikes
         d = self.kd * (error - self.prev_error) 
 
@@ -156,13 +155,19 @@ CENTER_Y = FRAME_H // 2
 
 DEAD_ZONE = 15
 
-
 # ─────────────────────────────────────────────
 # PID (tuned)
 # ─────────────────────────────────────────────
 pan_pid  = PID(0.015, 0.000, 0.025, -12, 12) 
 tilt_pid = PID(0.012, 0.000, 0.020, -8, 8)
 
+# ─────────────────────────────────────────────
+# STATE MACHINE SETUP
+# ─────────────────────────────────────────────
+system_state = "TRACKING"
+lost_frame_count = 0
+LOST_THRESHOLD = 30
+scan_start_time = 0
 
 # ─────────────────────────────────────────────
 # INIT SERVOS
@@ -170,7 +175,6 @@ tilt_pid = PID(0.012, 0.000, 0.020, -8, 8)
 set_servo(PAN_CHANNEL, pan_angle)
 set_servo(TILT_CHANNEL, tilt_angle)
 time.sleep(1)
-
 
 # ─────────────────────────────────────────────
 # MAIN LOOP
@@ -183,7 +187,22 @@ try:
         detection, mask = detect_blue_cap(frame_bgr)
 
         if detection:
+            # ─── TARGET FOUND ───
             cx, cy, r = detection
+            
+            # If recovering from search mode, clean up variables
+            if system_state == "SEARCHING":
+                system_state = "TRACKING"
+                pan_pid.reset()
+                tilt_pid.reset()
+                
+                # Force the entire array to float32 to prevent OpenCV gemm crash
+                kalman.statePre = np.array([[cx], [cy], [0], [0]], dtype=np.float32)
+                kalman.statePost = np.array([[cx], [cy], [0], [0]], dtype=np.float32)
+                
+                print("Target Acquired! Resuming tracking.")
+
+            lost_frame_count = 0
 
             # ───── KALMAN FILTER ─────
             measurement = np.array([[np.float32(cx)], [np.float32(cy)]])
@@ -210,8 +229,7 @@ try:
             tilt_angle = max(TILT_MIN, min(TILT_MAX, tilt_angle))
             is_flipped = tilt_angle > 90
 
-            # 1. WIPE BOTH PID MEMORIES ON CROSSING
-            # This stops the tilt from overshooting as the mechanical weight shifts
+            # WIPE BOTH PID MEMORIES ON CROSSING
             if was_flipped != is_flipped:
                 pan_pid.reset()
                 tilt_pid.reset() 
@@ -220,12 +238,11 @@ try:
             if abs(error_x) > DEAD_ZONE:
                 pan_adj = pan_pid.compute(error_x)
                 
-                # 2. NARROW CHOKE POINT
-                # Only throttle the pan speed if the camera is pointing almost straight up
+                # NARROW CHOKE POINT
                 if 85 < tilt_angle < 95:
                     pan_adj *= 0.25 
 
-                # 3. IMMEDIATE FLIP
+                # IMMEDIATE FLIP
                 if not is_flipped:
                     pan_angle -= pan_adj
                 else:
@@ -241,11 +258,44 @@ try:
             set_servo(PAN_CHANNEL, pan_angle)
             set_servo(TILT_CHANNEL, tilt_angle)
 
-            print(f"Pan:{pan_angle:.1f} Tilt:{tilt_angle:.1f}")
+            print(f"Pan:{pan_angle:.1f} Tilt:{tilt_angle:.1f} State:{system_state}")
 
             # Visualize
             cv2.circle(frame_bgr, (filtered_x, filtered_y), r, (0,255,0), 2)
             cv2.circle(frame_bgr, (cx, cy), 3, (0,0,255), -1)
+
+        else:
+            # ─── TARGET LOST (SEARCH MODE) ───
+            lost_frame_count += 1
+
+            if lost_frame_count > LOST_THRESHOLD:
+                if system_state == "TRACKING":
+                    system_state = "SEARCHING"
+                    scan_start_time = time.time()
+                    print("Target Lost! Initiating Dense Web Scan.")
+
+                # Execute Dense Lissajous Scan
+                t = time.time() - scan_start_time
+
+                # 1. WIDER AMPLITUDE: Push the scan to the physical hardware limits.
+                # Pan sweeps 80° left and right (Center 90 +/- 80 = 10 to 170)
+                # Tilt sweeps 50° up and down (Center 90 +/- 50 = 40 to 140)
+                
+                # 2. SHIFTING FREQUENCY: Using non-perfect multiples (1.2 and 0.43) 
+                # forces the path to constantly shift, drawing a dense web over time 
+                # rather than a repeating Figure-8.
+                pan_angle = 90.0 + 80.0 * math.sin(1.2 * t)
+                tilt_angle = 90.0 + 50.0 * math.sin(0.43 * t)
+
+                # Clamp to safe bounds
+                pan_angle = max(PAN_MIN, min(PAN_MAX, pan_angle))
+                tilt_angle = max(TILT_MIN, min(TILT_MAX, tilt_angle))
+
+                # Move servos
+                set_servo(PAN_CHANNEL, pan_angle)
+                set_servo(TILT_CHANNEL, tilt_angle)
+
+                print(f"Searching... Pan:{pan_angle:.1f} Tilt:{tilt_angle:.1f}")
 
         cv2.imshow("frame", frame_bgr)
         if cv2.waitKey(1) & 0xFF == ord('q'):
