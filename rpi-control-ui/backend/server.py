@@ -8,7 +8,7 @@ import re
 app = Flask(__name__)
 CORS(app)
 
-RPI_IP = "10.92.193.19"
+RPI_IP = "10.106.140.19"
 RPI_USER = "pan_tilt"
 RPI_PASS = "9876543210"
 STREAM_PORT = 8080
